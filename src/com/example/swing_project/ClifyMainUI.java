@@ -121,7 +121,7 @@ public class ClifyMainUI {
 
         // 글쓰기 버튼 클릭 시 글쓰기 창 호출
         writeButton.addActionListener(e -> {
-            WritePostDialog writePostDialog = new WritePostDialog(frame);
+            WritePostDialog writePostDialog = new WritePostDialog(frame, listModel);
             writePostDialog.setVisible(true);
 
             // 글쓰기 창에서 입력된 값을 리스트에 추가

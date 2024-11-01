@@ -2,19 +2,21 @@ package com.example.swing_project;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.HashMap;
+import java.util.Map;
 
 public class CommentPanel extends JPanel {
 
     private DefaultListModel<String> commentListModel;
-    private HashMap<Integer, DefaultListModel<String>> replyMap; // 댓글 ID에 답글 리스트 저장
+    private Map<String, DefaultListModel<String>> replyMap; // 댓글에 대한 대댓글 리스트를 관리하는 맵
+    private Map<String, JList<String>> visibleReplyLists; // 현재 보여지는 대댓글 리스트를 저장
 
     public CommentPanel() {
         setLayout(new BorderLayout());
         setBackground(new Color(255, 240, 245));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        replyMap = new HashMap<>();
 
         // 댓글 레이블
         JLabel commentLabel = new JLabel("댓글");
@@ -30,6 +32,21 @@ public class CommentPanel extends JPanel {
         JScrollPane commentScrollPane = new JScrollPane(commentList);
         add(commentScrollPane, BorderLayout.CENTER);
 
+        // 대댓글 맵 초기화
+        replyMap = new HashMap<>();
+        visibleReplyLists = new HashMap<>(); // 보여지는 대댓글 리스트를 관리
+
+        // 댓글 클릭 이벤트 처리 (대댓글 보이기/숨기기)
+        commentList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 1) { // 클릭 시
+                    String selectedComment = commentList.getSelectedValue();
+                    toggleReplyVisibility(selectedComment, commentList); // 대댓글 토글
+                }
+            }
+        });
+
         // 댓글 입력 필드와 버튼
         JTextField commentField = new JTextField(30);
         commentField.setFont(new Font("SansSerif", Font.PLAIN, 14));
@@ -38,14 +55,12 @@ public class CommentPanel extends JPanel {
         commentButton.setForeground(Color.WHITE);
         commentButton.setFocusPainted(false);
 
-        // 댓글 추가 동작
         commentButton.addActionListener(e -> {
             String commentText = commentField.getText();
             if (!commentText.isEmpty()) {
-                int commentIndex = commentListModel.size(); // 댓글 ID로 사용
-                commentListModel.addElement("댓글 " + (commentIndex + 1) + ": " + commentText); // 댓글 추가
-                replyMap.put(commentIndex, new DefaultListModel<>()); // 댓글에 대한 답글 리스트 생성
+                commentListModel.addElement(commentText); // 댓글 추가
                 commentField.setText(""); // 입력 필드 초기화
+                replyMap.put(commentText, new DefaultListModel<>()); // 대댓글 리스트 초기화
             }
         });
 
@@ -54,63 +69,79 @@ public class CommentPanel extends JPanel {
         commentInputPanel.add(commentField);
         commentInputPanel.add(commentButton);
         add(commentInputPanel, BorderLayout.SOUTH);
-
-        // 댓글 클릭 시 답글 및 기능 추가
-        commentList.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
-                if (e.getClickCount() == 1) {
-                    int selectedCommentIndex = commentList.getSelectedIndex();
-                    if (selectedCommentIndex != -1) {
-                        showReplyDialog(selectedCommentIndex);
-                    }
-                }
-            }
-        });
     }
 
-    // 답글 창을 띄우는 메서드
-    private void showReplyDialog(int commentIndex) {
-        JDialog parentDialog = (JDialog) SwingUtilities.getWindowAncestor(this);
-        JDialog replyDialog = new JDialog(parentDialog, "답글 달기", true);
+    // 대댓글 토글 (보이기/숨기기)
+    private void toggleReplyVisibility(String comment, JList<String> commentList) {
+        DefaultListModel<String> replies = replyMap.get(comment);
+        if (replies == null || replies.getSize() == 0) {
+            JOptionPane.showMessageDialog(this, "대댓글이 없습니다.");
+            return;
+        }
+
+        if (visibleReplyLists.containsKey(comment)) {
+            // 대댓글이 이미 보이고 있다면 숨기기
+            JList<String> replyList = visibleReplyLists.remove(comment);
+            remove(replyList);
+        } else {
+            // 대댓글이 보이지 않으면 새로 추가
+            JList<String> replyList = new JList<>(replies);
+            replyList.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+            replyList.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            JScrollPane replyScrollPane = new JScrollPane(replyList);
+            replyScrollPane.setPreferredSize(new Dimension(200, 100));
+
+            // 댓글 밑에 대댓글 리스트 추가
+            add(replyScrollPane, BorderLayout.SOUTH);
+            visibleReplyLists.put(comment, replyList);
+        }
+
+        // 레이아웃 업데이트
+        revalidate();
+        repaint();
+    }
+
+    // 대댓글 입력 창을 표시하는 메서드
+    private void showReplyDialog(String comment) {
+        if (comment == null || comment.isEmpty()) return;
+
+        JDialog replyDialog = new JDialog((Frame) null, "답글 달기", true);
         replyDialog.setSize(400, 200);
         replyDialog.setLayout(new BorderLayout());
         replyDialog.setLocationRelativeTo(this);
 
-        // 답글 입력 필드
-        JTextArea replyArea = new JTextArea(5, 30);
-        replyArea.setLineWrap(true);
-        replyArea.setWrapStyleWord(true);
-        replyArea.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        JScrollPane replyScrollPane = new JScrollPane(replyArea);
-        replyDialog.add(replyScrollPane, BorderLayout.CENTER);
+        // 대댓글 입력 필드
+        JTextField replyField = new JTextField(30);
+        JPanel replyPanel = new JPanel(new BorderLayout());
+        replyPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        replyPanel.add(new JLabel("대댓글 입력: "), BorderLayout.NORTH);
+        replyPanel.add(replyField, BorderLayout.CENTER);
+        replyDialog.add(replyPanel, BorderLayout.CENTER);
 
-        // 하단 버튼 패널
+        // 대댓글 버튼 패널
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton saveReplyButton = new JButton("저장");
-        saveReplyButton.setBackground(new Color(204, 153, 255));
-        saveReplyButton.setForeground(Color.WHITE);
+        JButton submitButton = new JButton("등록");
+        JButton cancelButton = new JButton("취소");
 
-        JButton cancelReplyButton = new JButton("취소");
-        cancelReplyButton.setBackground(new Color(204, 153, 255));
-        cancelReplyButton.setForeground(Color.WHITE);
-
-        // 답글 저장 기능
-        saveReplyButton.addActionListener(e -> {
-            String replyText = replyArea.getText();
+        // 대댓글 등록 버튼 클릭 시
+        submitButton.addActionListener(e -> {
+            String replyText = replyField.getText();
             if (!replyText.isEmpty()) {
-                DefaultListModel<String> replies = replyMap.get(commentIndex);
-                replies.addElement("ㄴ 답글: " + replyText); // 답글 추가
-                commentListModel.addElement("    " + replyText); // 댓글 리스트에도 표시
+                DefaultListModel<String> replies = replyMap.get(comment);
+                if (replies == null) {
+                    replies = new DefaultListModel<>();
+                    replyMap.put(comment, replies); // 대댓글 리스트가 없을 경우 초기화
+                }
+                replies.addElement(replyText); // 대댓글 추가
+                JOptionPane.showMessageDialog(this, "대댓글이 등록되었습니다.");
                 replyDialog.dispose();
             }
         });
 
-        // 취소 기능
-        cancelReplyButton.addActionListener(e -> replyDialog.dispose());
+        cancelButton.addActionListener(e -> replyDialog.dispose());
 
-        buttonPanel.add(saveReplyButton);
-        buttonPanel.add(cancelReplyButton);
+        buttonPanel.add(submitButton);
+        buttonPanel.add(cancelButton);
         replyDialog.add(buttonPanel, BorderLayout.SOUTH);
 
         replyDialog.setVisible(true);

@@ -11,5 +11,32 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="KotlinJavaRuntime" level="project" />
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES />
+        <JAVADOC />
+        <SOURCES>
+          <root url="file://D:/mysql-connector-j-9.1.0/mysql-connector-j-9.1.0/src/build/java" />
+          <root url="file://D:/mysql-connector-j-9.1.0/mysql-connector-j-9.1.0/src/demo/java" />
+          <root url="file://D:/mysql-connector-j-9.1.0/mysql-connector-j-9.1.0/src/generated/java" />
+          <root url="file://D:/mysql-connector-j-9.1.0/mysql-connector-j-9.1.0/src/legacy/java" />
+          <root url="file://D:/mysql-connector-j-9.1.0/mysql-connector-j-9.1.0/src/main/core-api/java" />
+          <root url="file://D:/mysql-connector-j-9.1.0/mysql-connector-j-9.1.0/src/main/core-impl/java" />
+          <root url="file://D:/mysql-connector-j-9.1.0/mysql-connector-j-9.1.0/src/main/protocol-impl/java" />
+          <root url="file://D:/mysql-connector-j-9.1.0/mysql-connector-j-9.1.0/src/main/user-api/java" />
+          <root url="file://D:/mysql-connector-j-9.1.0/mysql-connector-j-9.1.0/src/main/user-impl/java" />
+          <root url="file://D:/mysql-connector-j-9.1.0/mysql-connector-j-9.1.0/src/test/java" />
+        </SOURCES>
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library" exported="">
+      <library>
+        <CLASSES>
+          <root url="jar://D:/mysql-connector-j-9.1.0/mysql-connector-j-9.1.0/mysql-connector-j-9.1.0.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
   </component>
 </module>
