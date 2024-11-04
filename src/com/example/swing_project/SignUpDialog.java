@@ -5,6 +5,10 @@ import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
@@ -14,7 +18,7 @@ public class SignUpDialog extends JDialog {
 
     public SignUpDialog(JFrame parentFrame) {
         super(parentFrame, "회원가입", true); // 모달 다이얼로그 설정
-        setSize(600, 400); // 창 크기 설정
+        setSize(600, 500); // 창 크기 설정
         setLocationRelativeTo(parentFrame); // 부모 창 중앙에 배치
         setLayout(new BorderLayout());
 
@@ -33,7 +37,7 @@ public class SignUpDialog extends JDialog {
         add(headerPanel, BorderLayout.NORTH);
 
         // 입력 필드 패널
-        JPanel inputPanel = new JPanel(new GridLayout(3, 2, 10, 10)); // 3행 2열 그리드
+        JPanel inputPanel = new JPanel(new GridLayout(4, 2, 10, 10)); // 4행 2열 그리드
         inputPanel.setBorder(BorderFactory.createEmptyBorder(10, 40, 10, 40));
         inputPanel.setBackground(new Color(255, 240, 255)); // 연한 보라 핑크 배경
 
@@ -44,6 +48,14 @@ public class SignUpDialog extends JDialog {
         JTextField idField = new JTextField(20);
         idField.setFont(new Font("SansSerif", Font.PLAIN, 14)); // 글씨 크기 조정
         addPlaceholderText(idField, "3~10글자 이내로 입력해주세요");
+
+        // 이메일 입력
+        JLabel emailLabel = new JLabel("이메일:");
+        emailLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
+        emailLabel.setForeground(new Color(102, 51, 153)); // 진한 보라색
+        JTextField emailField = new JTextField(20);
+        emailField.setFont(new Font("SansSerif", Font.PLAIN, 14)); // 글씨 크기 조정
+        addPlaceholderText(emailField, "이메일 주소를 입력해주세요");
 
         // 비밀번호 입력
         JLabel passwordLabel = new JLabel("비밀번호:");
@@ -82,6 +94,8 @@ public class SignUpDialog extends JDialog {
 
         inputPanel.add(idLabel);
         inputPanel.add(idField);
+        inputPanel.add(emailLabel);
+        inputPanel.add(emailField);
         inputPanel.add(passwordLabel);
         inputPanel.add(passwordPanel); // 비밀번호 패널에 눈 모양 버튼 포함
         inputPanel.add(confirmPasswordLabel);
@@ -108,16 +122,24 @@ public class SignUpDialog extends JDialog {
         // 회원가입 버튼 액션
         signUpButton.addActionListener(e -> {
             String id = idField.getText();
+            String email = emailField.getText();
             String password = new String(passwordField.getPassword());
             String confirmPassword = new String(confirmPasswordField.getPassword());
 
-            if (id.isEmpty() || password.isEmpty() || confirmPassword.isEmpty()) {
+            if (id.isEmpty() || email.isEmpty() || password.isEmpty() || confirmPassword.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "모든 필드를 입력해주세요.", "경고", JOptionPane.WARNING_MESSAGE);
+            } else if (!isValidEmail(email)) {
+                JOptionPane.showMessageDialog(this, "유효한 이메일 주소를 입력해주세요.", "경고", JOptionPane.WARNING_MESSAGE);
+            } else if (isUsernameTaken(id)) {
+                JOptionPane.showMessageDialog(this, "이미 존재하는 아이디입니다.", "경고", JOptionPane.WARNING_MESSAGE);
+            } else if (isEmailTaken(email)) {
+                JOptionPane.showMessageDialog(this, "이미 존재하는 이메일입니다.", "경고", JOptionPane.WARNING_MESSAGE);
             } else if (!password.equals(confirmPassword)) {
                 JOptionPane.showMessageDialog(this, "비밀번호와 비밀번호 확인이 일치하지 않습니다.", "경고", JOptionPane.WARNING_MESSAGE);
             } else if (!isValidPassword(password)) {
-                JOptionPane.showMessageDialog(this, "비밀번호는 특수문자, 숫자, 영어를 포함해야 합니다.", "경고", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "비밀번호는 특수문자, 숫자, 영어를 포함하고 6글자 이상이어야 합니다.", "경고", JOptionPane.WARNING_MESSAGE);
             } else {
+                saveUserToDatabase(id, email, password);
                 JOptionPane.showMessageDialog(this, "회원가입 완료!", "정보", JOptionPane.INFORMATION_MESSAGE);
                 dispose(); // 성공 시 창 닫기
             }
@@ -132,7 +154,76 @@ public class SignUpDialog extends JDialog {
         add(buttonPanel, BorderLayout.SOUTH);
     }
 
-    // 비밀번호 검증 메서드 (특수문자, 숫자, 영어 포함 여부)
+    // 아이디 중복 확인 메서드
+    private boolean isUsernameTaken(String id) {
+        try (Connection conn = DatabaseConnector.getConnection()) {
+            if (conn != null) {
+                String query = "SELECT COUNT(*) AS count FROM users WHERE username = ?";
+                try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                    stmt.setString(1, id);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (rs.next()) {
+                            return rs.getInt("count") > 0;
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "데이터베이스 오류가 발생했습니다.", "오류", JOptionPane.ERROR_MESSAGE);
+        }
+        return false;
+    }
+
+    // 이메일 중복 확인 메서드
+    private boolean isEmailTaken(String email) {
+        try (Connection conn = DatabaseConnector.getConnection()) {
+            if (conn != null) {
+                String query = "SELECT COUNT(*) AS count FROM users WHERE email = ?";
+                try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                    stmt.setString(1, email);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (rs.next()) {
+                            return rs.getInt("count") > 0;
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "데이터베이스 오류가 발생했습니다.", "오류", JOptionPane.ERROR_MESSAGE);
+        }
+        return false;
+    }
+
+    // 사용자 정보 데이터베이스에 저장하는 메서드
+    private void saveUserToDatabase(String id, String email, String password) {
+        try (Connection conn = DatabaseConnector.getConnection()) {
+            if (conn != null) {
+                String query = "INSERT INTO users (username, email, password) VALUES (?, ?, ?)";
+                try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                    stmt.setString(1, id);
+                    stmt.setString(2, email);
+                    stmt.setString(3, password);
+                    stmt.executeUpdate();
+                    System.out.println("사용자 정보 저장 성공!");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "데이터베이스 오류가 발생했습니다.", "오류", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // 이메일 검증 메서드 (@ 포함 여부)
+    private boolean isValidEmail(String email) {
+        String emailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$";
+        Pattern pattern = Pattern.compile(emailRegex);
+        Matcher matcher = pattern.matcher(email);
+        return matcher.matches();
+    }
+
+    // 비밀번호 검증 메서드 (특수문자, 숫자, 영어 포함 여부, 6글자 이상)
     private boolean isValidPassword(String password) {
         String regex = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[@$!%*#?&])[A-Za-z\\d@$!%*#?&]{6,20}$";
         Pattern pattern = Pattern.compile(regex);

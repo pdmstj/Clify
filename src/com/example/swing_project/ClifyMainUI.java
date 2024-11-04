@@ -5,9 +5,15 @@ import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.ActionListener;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.HashMap;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.HashMap;
+
 
 public class ClifyMainUI {
 
@@ -84,6 +90,20 @@ public class ClifyMainUI {
             signUpDialog.setVisible(true); // 회원가입 창 띄우기
         });
 
+        // 로그인 버튼 액션 추가
+        loginButton.addActionListener(e -> {
+            String username = idField.getText();
+            String password = new String(passwordField.getPassword());
+
+            if (username.isEmpty() || password.isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "아이디와 비밀번호를 입력해주세요.", "경고", JOptionPane.WARNING_MESSAGE);
+            } else if (authenticateUser(username, password)) {
+                JOptionPane.showMessageDialog(frame, "로그인 성공!", "정보", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(frame, "로그인 실패: 아이디 또는 비밀번호가 잘못되었습니다.", "경고", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+
         // 리스트 패널 (중앙)
         JPanel listPanel = new JPanel();
         listModel = new DefaultListModel<>(); // 리스트 모델 생성
@@ -120,18 +140,21 @@ public class ClifyMainUI {
         writeButton.setForeground(Color.WHITE);
 
         // 글쓰기 버튼 클릭 시 글쓰기 창 호출
+        // 글쓰기 버튼 클릭 시 글쓰기 창 호출
         writeButton.addActionListener(e -> {
-            WritePostDialog writePostDialog = new WritePostDialog(frame, listModel);
+            int userId = 1; // userId를 가져오는 로직이 필요할 수 있습니다.
+            WritePostDialog writePostDialog = new WritePostDialog(frame, listModel, userId);
             writePostDialog.setVisible(true);
 
-            // 글쓰기 창에서 입력된 값을 리스트에 추가
             String title = writePostDialog.getTitleText();
             String content = writePostDialog.getContentText();
-            if (!title.isEmpty() && !content.isEmpty()) {
+            if (title != null && !title.isEmpty() && content != null && !content.isEmpty()) {
                 listModel.addElement(title); // 제목을 리스트에 추가
                 postMap.put(title, content); // 제목과 본문을 맵에 저장
             }
         });
+
+
 
         bottomPanel.add(writeButton);
         mainPanel.add(bottomPanel, BorderLayout.SOUTH);
@@ -162,5 +185,27 @@ public class ClifyMainUI {
                 }
             }
         });
+    }
+
+    // 사용자 인증 메소드
+    private static boolean authenticateUser(String username, String password) {
+        try (Connection conn = DatabaseConnector.getConnection()) {
+            if (conn != null) {
+                String query = "SELECT COUNT(*) AS count FROM users WHERE username = ? AND password = ?";
+                try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                    stmt.setString(1, username);
+                    stmt.setString(2, password);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (rs.next()) {
+                            return rs.getInt("count") > 0;
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "데이터베이스 오류가 발생했습니다.", "오류", JOptionPane.ERROR_MESSAGE);
+        }
+        return false;
     }
 }

@@ -1,7 +1,15 @@
 package com.example.swing_project;
 
 import javax.swing.*;
+import javax.swing.text.JTextComponent;
 import java.awt.*;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.ActionListener;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -14,11 +22,13 @@ public class WritePostDialog extends JDialog {
     private JButton deleteButton;
 
     private DefaultListModel<String> postListModel;
-    private static Map<String, String> tempStorage = new HashMap<>();
+    private static Map<Integer, Map<String, String>> tempStorage = new HashMap<>();
+    private int userId;
 
-    public WritePostDialog(JFrame parentFrame, DefaultListModel<String> postListModel) {
+    public WritePostDialog(JFrame parentFrame, DefaultListModel<String> postListModel, int userId) {
         super(parentFrame, "글쓰기", true);
         this.postListModel = postListModel;
+        this.userId = userId;
         setSize(800, 600);
         setLocationRelativeTo(parentFrame);
         setLayout(new BorderLayout());
@@ -94,8 +104,10 @@ public class WritePostDialog extends JDialog {
         tempSaveButton.addActionListener(e -> {
             String title = titleField.getText();
             String content = contentArea.getText();
+
             if (!title.isEmpty() && !content.isEmpty()) {
-                tempStorage.put(title, content);
+                tempStorage.putIfAbsent(userId, new HashMap<>());
+                tempStorage.get(userId).put(title, content);
                 JOptionPane.showMessageDialog(this, "글이 임시 저장되었습니다.", "임시저장", JOptionPane.INFORMATION_MESSAGE);
             } else {
                 JOptionPane.showMessageDialog(this, "제목과 본문을 입력해주세요.", "경고", JOptionPane.WARNING_MESSAGE);
@@ -105,17 +117,29 @@ public class WritePostDialog extends JDialog {
         saveButton.addActionListener(e -> {
             String title = titleField.getText();
             String content = contentArea.getText();
-            int userId = 1; // 예시로 사용자 ID를 1로 설정합니다. 실제로는 로그인한 사용자 ID를 사용해야 합니다.
 
             if (!title.isEmpty() && !content.isEmpty()) {
-                PostRepository postRepository = new PostRepository();
-                postRepository.savePost(title, content, userId); // 데이터베이스에 저장
-                postListModel.addElement(title);
-                dispose();
+                try {
+                    PostRepository postRepository = new PostRepository();
+                    postRepository.savePost(title, content, userId); // 데이터베이스에 저장
+                    postListModel.addElement(title);
+                    dispose();
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "글 저장 중 오류가 발생했습니다.", "오류", JOptionPane.ERROR_MESSAGE);
+                }
             } else {
                 JOptionPane.showMessageDialog(this, "제목과 본문을 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
             }
         });
+
+        // 임시 저장된 글 불러오기 (생성 시)
+        if (tempStorage.containsKey(userId) && !tempStorage.get(userId).isEmpty()) {
+            Map<String, String> userTempStorage = tempStorage.get(userId);
+            String tempTitle = userTempStorage.keySet().iterator().next();
+            String tempContent = userTempStorage.get(tempTitle);
+            titleField.setText(tempTitle);
+            contentArea.setText(tempContent);
+        }
     }
 
     public String getTitleText() {
