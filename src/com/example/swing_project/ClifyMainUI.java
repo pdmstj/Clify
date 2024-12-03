@@ -5,20 +5,25 @@ import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
-import java.awt.event.ActionListener;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.HashMap;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-
+import java.util.HashMap;
+import java.util.List;
+import java.util.Random;
 
 public class ClifyMainUI {
 
     private static DefaultListModel<String> listModel;
     private static HashMap<String, String> postMap = new HashMap<>(); // 제목과 본문을 저장하는 맵
+    private static boolean isLoggedIn = false; // 로그인 상태 확인
+    private static String loggedInUsername = ""; // 로그인한 사용자의 아이디 저장
+    private static String nickname = ""; // 로그인한 사용자의 닉네임 저장
+    private static int currentUserId = -1; // 현재 로그인한 사용자의 ID 저장
+
+    // 로그인 상태를 확인하는 Getter 메서드
+    public static boolean isLoggedIn() {
+        return isLoggedIn;
+    }
 
     public static void main(String[] args) {
         // 메인 프레임 생성
@@ -33,76 +38,40 @@ public class ClifyMainUI {
         frame.add(mainPanel, BorderLayout.CENTER);
 
         // 상단 패널 (타이틀 + 검색창)
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel topPanel = new JPanel(new GridBagLayout());
         topPanel.setBackground(new Color(204, 153, 255)); // 연한 보라색 배경
         topPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // 패딩 추가
         mainPanel.add(topPanel, BorderLayout.NORTH);
 
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+
+        // 타이틀 라벨 추가
         JLabel titleLabel = new JLabel("Clify");
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 28));
         titleLabel.setForeground(Color.WHITE);
-        topPanel.add(titleLabel);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.anchor = GridBagConstraints.WEST;
+        topPanel.add(titleLabel, gbc);
 
-        // 검색 필드에 플레이스홀더 추가
+        // 검색 필드 추가
         JTextField searchField = new JTextField(20);
         searchField.setFont(new Font("SansSerif", Font.PLAIN, 14));
         addPlaceholderText(searchField, "검색어를 입력하세요...");
+        gbc.gridx = 1;
+        gbc.gridy = 0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        topPanel.add(searchField, gbc);
+
+        // 검색 버튼 추가
         JButton searchButton = new JButton("검색");
         searchButton.setBackground(new Color(153, 102, 255));
         searchButton.setForeground(Color.WHITE);
-        searchButton.setFocusPainted(false);
-        topPanel.add(searchField);
-        topPanel.add(searchButton);
-
-        // 로그인 패널 (우측)
-        JPanel loginPanel = new JPanel();
-        loginPanel.setBackground(new Color(255, 228, 255)); // 연한 보라 핑크 배경
-        loginPanel.setLayout(new GridLayout(5, 1, 10, 10)); // 그리드 레이아웃
-        loginPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // 패딩 추가
-        mainPanel.add(loginPanel, BorderLayout.EAST);
-
-        // ID 필드에 플레이스홀더 추가
-        JTextField idField = new JTextField(10);
-        addPlaceholderText(idField, "ID");
-
-        // PASSWORD 필드에 플레이스홀더 추가
-        JPasswordField passwordField = new JPasswordField(10);
-        addPlaceholderText(passwordField, "PASSWORD");
-
-        JCheckBox autoLoginCheck = new JCheckBox("자동 로그인");
-        JButton loginButton = new JButton("로그인");
-        JButton signUpButton = new JButton("회원가입");
-
-        loginButton.setBackground(new Color(153, 102, 255));
-        loginButton.setForeground(Color.WHITE);
-        signUpButton.setBackground(new Color(204, 153, 255));
-        signUpButton.setForeground(Color.WHITE);
-
-        loginPanel.add(idField);
-        loginPanel.add(passwordField);
-        loginPanel.add(autoLoginCheck);
-        loginPanel.add(loginButton);
-        loginPanel.add(signUpButton);
-
-        // 회원가입 버튼 액션 추가
-        signUpButton.addActionListener(e -> {
-            SignUpDialog signUpDialog = new SignUpDialog(frame); // 회원가입 창 호출
-            signUpDialog.setVisible(true); // 회원가입 창 띄우기
-        });
-
-        // 로그인 버튼 액션 추가
-        loginButton.addActionListener(e -> {
-            String username = idField.getText();
-            String password = new String(passwordField.getPassword());
-
-            if (username.isEmpty() || password.isEmpty()) {
-                JOptionPane.showMessageDialog(frame, "아이디와 비밀번호를 입력해주세요.", "경고", JOptionPane.WARNING_MESSAGE);
-            } else if (authenticateUser(username, password)) {
-                JOptionPane.showMessageDialog(frame, "로그인 성공!", "정보", JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                JOptionPane.showMessageDialog(frame, "로그인 실패: 아이디 또는 비밀번호가 잘못되었습니다.", "경고", JOptionPane.WARNING_MESSAGE);
-            }
-        });
+        gbc.gridx = 2;
+        gbc.gridy = 0;
+        gbc.fill = GridBagConstraints.NONE;
+        topPanel.add(searchButton, gbc);
 
         // 리스트 패널 (중앙)
         JPanel listPanel = new JPanel();
@@ -111,6 +80,31 @@ public class ClifyMainUI {
         itemList.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY)); // 경계선 추가
         itemList.setBackground(Color.WHITE);
         itemList.setFont(new Font("SansSerif", Font.PLAIN, 14));
+
+        // 프로그램 시작 시 데이터베이스에서 기존 글 불러오기
+        loadPostsFromDatabase();
+
+        // 검색 버튼 클릭 이벤트 추가
+        searchButton.addActionListener(e -> {
+            String query = searchField.getText().trim();
+            if (!query.isEmpty()) {
+                boolean found = false;
+                for (int i = 0; i < listModel.getSize(); i++) {
+                    String title = listModel.getElementAt(i);
+                    if (title.contains(query)) {
+                        itemList.setSelectedIndex(i);
+                        itemList.ensureIndexIsVisible(i);
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    JOptionPane.showMessageDialog(frame, "검색 결과가 없습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
+                }
+            } else {
+                JOptionPane.showMessageDialog(frame, "검색어를 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
+            }
+        });
 
         // 리스트 아이템 클릭 시 글 내용 보여주기
         itemList.addMouseListener(new MouseAdapter() {
@@ -132,6 +126,73 @@ public class ClifyMainUI {
         JScrollPane listScrollPane = new JScrollPane(itemList);
         mainPanel.add(listScrollPane, BorderLayout.CENTER);
 
+        // 빈 공간 추가
+        gbc.gridx = 3;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        topPanel.add(Box.createHorizontalStrut(20), gbc);
+
+        // 로그인 버튼 추가
+        JButton loginButton = new JButton("로그인");
+        loginButton.setBackground(new Color(153, 102, 255));
+        loginButton.setForeground(Color.WHITE);
+        gbc.gridx = 4;
+        gbc.gridy = 0;
+        gbc.weightx = 0;
+        topPanel.add(loginButton, gbc);
+
+        // "마이 페이지" 버튼 추가 (초기에는 비활성화 상태)
+        JButton myPageButton = new JButton("마이 페이지");
+        myPageButton.setBackground(new Color(204, 153, 255));
+        myPageButton.setForeground(Color.WHITE);
+        myPageButton.setEnabled(false); // 초기에는 비활성화
+        gbc.gridx = 5;
+        gbc.gridy = 0;
+        topPanel.add(myPageButton, gbc);
+
+        loginButton.addActionListener(e -> {
+            LoginDialog loginDialog = new LoginDialog(frame); // 로그인 창 호출
+            loginDialog.setVisible(true); // 로그인 창 띄우기
+
+            // 로그인 후 결과 확인
+            if (loginDialog.isLoggedIn()) {
+                JOptionPane.showMessageDialog(frame, "로그인 성공!", "정보", JOptionPane.INFORMATION_MESSAGE);
+                isLoggedIn = true; // 로그인 상태로 변경
+                loggedInUsername = loginDialog.getUsername(); // 로그인한 사용자 아이디 저장
+
+                UserRepository userRepository = new UserRepository();
+                int userId = userRepository.getUserIdByUsername(loggedInUsername); // 사용자의 ID 가져오기
+                if (userId != -1) {
+                    currentUserId = userId; // 로그인한 사용자의 ID 저장
+                }
+
+                // 랜덤 닉네임 생성
+                nickname = generateRandomNickname();
+
+                // 로그인 후 "마이 페이지" 버튼 활성화
+                myPageButton.setEnabled(true);
+
+                // 마이 페이지 버튼 클릭 시 사용자의 글 목록 보기
+                myPageButton.addActionListener(e1 -> {
+                    if (isLoggedIn) {
+                        PostRepository postRepository = new PostRepository();
+                        List<post> userPosts = postRepository.getPostsByUser(currentUserId); // 사용자가 작성한 글 불러오기
+
+                        if (userPosts.isEmpty()) {
+                            JOptionPane.showMessageDialog(frame, "작성한 글이 없습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
+                        } else {
+                            MyPostsDialog myPostsDialog = new MyPostsDialog(userPosts, listModel, postMap, loggedInUsername, currentUserId);
+                            myPostsDialog.setVisible(true);
+                        }
+                    }
+                });
+
+            } else {
+                JOptionPane.showMessageDialog(frame, "로그인 실패: 아이디 또는 비밀번호가 잘못되었습니다.", "경고", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+
         // 하단 패널 (글쓰기 버튼)
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         bottomPanel.setBackground(new Color(255, 240, 245)); // 하단 배경
@@ -140,21 +201,26 @@ public class ClifyMainUI {
         writeButton.setForeground(Color.WHITE);
 
         // 글쓰기 버튼 클릭 시 글쓰기 창 호출
-        // 글쓰기 버튼 클릭 시 글쓰기 창 호출
         writeButton.addActionListener(e -> {
-            int userId = 1; // userId를 가져오는 로직이 필요할 수 있습니다.
-            WritePostDialog writePostDialog = new WritePostDialog(frame, listModel, userId);
+            if (!isLoggedIn) {
+                JOptionPane.showMessageDialog(frame, "로그인 후에 글을 작성할 수 있습니다.", "경고", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            WritePostDialog writePostDialog = new WritePostDialog(frame, listModel, currentUserId);
             writePostDialog.setVisible(true);
 
             String title = writePostDialog.getTitleText();
             String content = writePostDialog.getContentText();
             if (title != null && !title.isEmpty() && content != null && !content.isEmpty()) {
-                listModel.addElement(title); // 제목을 리스트에 추가
-                postMap.put(title, content); // 제목과 본문을 맵에 저장
+                if (!listModel.contains(title)) { // 중복 방지
+                    listModel.addElement(title); // 제목을 리스트에 추가
+                    postMap.put(title, content); // 제목과 본문을 맵에 저장
+
+                    // 데이터베이스에 글 저장
+                    savePostToDatabase(title, content, currentUserId);
+                }
             }
         });
-
-
 
         bottomPanel.add(writeButton);
         mainPanel.add(bottomPanel, BorderLayout.SOUTH);
@@ -163,7 +229,20 @@ public class ClifyMainUI {
         frame.setVisible(true);
     }
 
-    // 플레이스홀더 추가 메소드
+    // 프로그램 시작 시 데이터베이스에서 기존 글 불러오기
+    private static void loadPostsFromDatabase() {
+        PostRepository postRepository = new PostRepository();
+        List<post> allPosts = postRepository.getAllPosts(); // 데이터베이스에서 모든 글을 가져오기
+
+        for (post post : allPosts) {
+            if (!listModel.contains(post.getTitle())) { // 중복 방지
+                listModel.addElement(post.getTitle()); // 제목을 리스트에 추가
+                postMap.put(post.getTitle(), post.getContent()); // 제목과 본문을 맵에 저장
+            }
+        }
+    }
+
+    // 플레이스홀더 추가 메서드
     public static void addPlaceholderText(JTextComponent textComponent, String placeholder) {
         textComponent.setForeground(Color.GRAY);
         textComponent.setText(placeholder);
@@ -187,25 +266,24 @@ public class ClifyMainUI {
         });
     }
 
-    // 사용자 인증 메소드
-    private static boolean authenticateUser(String username, String password) {
-        try (Connection conn = DatabaseConnector.getConnection()) {
-            if (conn != null) {
-                String query = "SELECT COUNT(*) AS count FROM users WHERE username = ? AND password = ?";
-                try (PreparedStatement stmt = conn.prepareStatement(query)) {
-                    stmt.setString(1, username);
-                    stmt.setString(2, password);
-                    try (ResultSet rs = stmt.executeQuery()) {
-                        if (rs.next()) {
-                            return rs.getInt("count") > 0;
-                        }
-                    }
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "데이터베이스 오류가 발생했습니다.", "오류", JOptionPane.ERROR_MESSAGE);
+    // 랜덤 닉네임 생성 메서드
+    private static String generateRandomNickname() {
+        String[] randomNicknames = {"하늘을 달리는 호랑이", "웃는 바람", "고요한 바다", "날아오르는 새", "작은 별빛"};
+        Random random = new Random();
+        return randomNicknames[random.nextInt(randomNicknames.length)];
+    }
+
+    // 데이터베이스에 글을 저장하는 메서드
+    private static void savePostToDatabase(String title, String content, int userId) {
+        PostRepository postRepository = new PostRepository();
+        postRepository.savePost(title, content, userId);
+    }
+
+    // 리스트에서 특정 글을 삭제하는 메서드
+    public static void removePostFromList(String title) {
+        if (listModel.contains(title)) {
+            listModel.removeElement(title);
+            postMap.remove(title);
         }
-        return false;
     }
 }

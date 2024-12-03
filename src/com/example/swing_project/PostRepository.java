@@ -1,61 +1,34 @@
 package com.example.swing_project;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.sql.ResultSet;
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class PostRepository {
 
     // 글 저장 메서드
     public void savePost(String title, String content, int userId) {
         String sql = "INSERT INTO posts (title, content, user_id) VALUES (?, ?, ?)";
-        Connection connection = null;
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
 
-        try {
-            connection = DatabaseConnector.getConnection();
-            if (connection != null) {
-                connection.setAutoCommit(false); // 자동 커밋 비활성화
+            preparedStatement.setString(1, title);
+            preparedStatement.setString(2, content);
+            preparedStatement.setInt(3, userId);
 
-                try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
-                    preparedStatement.setString(1, title);
-                    preparedStatement.setString(2, content);
-                    preparedStatement.setInt(3, userId);
-
-                    int rowsAffected = preparedStatement.executeUpdate();
-                    if (rowsAffected > 0) {
-                        System.out.println("Post saved successfully!");
-                    }
-
-                    connection.commit(); // 트랜잭션 커밋
-                }
+            int rowsAffected = preparedStatement.executeUpdate();
+            if (rowsAffected > 0) {
+                System.out.println("Post saved successfully!");
             }
+
         } catch (SQLException e) {
             e.printStackTrace();
-            if (connection != null) {
-                try {
-                    connection.rollback(); // 오류 시 롤백
-                    System.out.println("Transaction rolled back.");
-                } catch (SQLException rollbackEx) {
-                    rollbackEx.printStackTrace();
-                }
-            }
-        } finally {
-            if (connection != null) {
-                try {
-                    connection.setAutoCommit(true); // 커밋 모드 되돌리기
-                    connection.close(); // 연결 닫기
-                } catch (SQLException closeEx) {
-                    closeEx.printStackTrace();
-                }
-            }
         }
     }
 
     // 특정 사용자의 모든 글 삭제 메서드
     public void deletePostsByUser(int userId) {
         String sql = "DELETE FROM posts WHERE user_id = ?";
-
         try (Connection connection = DatabaseConnector.getConnection();
              PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
 
@@ -70,9 +43,10 @@ public class PostRepository {
         }
     }
 
-    // 특정 사용자의 모든 글 조회 메서드
-    public void getPostsByUser(int userId) {
+    // 특정 사용자가 작성한 글 목록 조회 메서드
+    public List<post> getPostsByUser(int userId) {
         String sql = "SELECT * FROM posts WHERE user_id = ?";
+        List<post> userPosts = new ArrayList<>();
 
         try (Connection connection = DatabaseConnector.getConnection();
              PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
@@ -80,15 +54,57 @@ public class PostRepository {
             preparedStatement.setInt(1, userId);
             try (ResultSet resultSet = preparedStatement.executeQuery()) {
                 while (resultSet.next()) {
+                    int id = resultSet.getInt("id");
                     String title = resultSet.getString("title");
                     String content = resultSet.getString("content");
-                    System.out.println("Title: " + title);
-                    System.out.println("Content: " + content);
+                    userPosts.add(new post(id, title, content));
                 }
             }
 
         } catch (SQLException e) {
             e.printStackTrace();
         }
+
+        return userPosts;
+    }
+
+    // 특정 글 ID로 삭제
+    public void deletePostById(int postId) {
+        String sql = "DELETE FROM posts WHERE id = ?";
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+
+            preparedStatement.setInt(1, postId);
+            int rowsAffected = preparedStatement.executeUpdate();
+            if (rowsAffected > 0) {
+                System.out.println("Post deleted successfully with ID: " + postId);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // 모든 글 조회 메서드
+    public List<post> getAllPosts() {
+        String sql = "SELECT * FROM posts";
+        List<post> allPosts = new ArrayList<>();
+
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql);
+             ResultSet resultSet = preparedStatement.executeQuery()) {
+
+            while (resultSet.next()) {
+                int id = resultSet.getInt("id");
+                String title = resultSet.getString("title");
+                String content = resultSet.getString("content");
+                allPosts.add(new post(id, title, content));
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return allPosts;
     }
 }

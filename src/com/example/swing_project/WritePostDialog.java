@@ -5,7 +5,6 @@ import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
-import java.awt.event.ActionListener;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -97,8 +96,19 @@ public class WritePostDialog extends JDialog {
         add(buttonPanel, BorderLayout.SOUTH);
 
         deleteButton.addActionListener(e -> {
-            titleField.setText("");
-            contentArea.setText("");
+            String title = titleField.getText();
+            if (title.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "삭제할 글이 없습니다.", "경고", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            int postId = getPostIdByTitle(title); // 해당 글의 ID를 가져오는 메서드 필요
+            if (postId != -1) {
+                PostRepository postRepository = new PostRepository();
+                postRepository.deletePostById(postId); // 데이터베이스에서 삭제
+                titleField.setText("");
+                contentArea.setText("");
+                JOptionPane.showMessageDialog(this, "글이 삭제되었습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
+            }
         });
 
         tempSaveButton.addActionListener(e -> {
@@ -120,10 +130,12 @@ public class WritePostDialog extends JDialog {
 
             if (!title.isEmpty() && !content.isEmpty()) {
                 try {
-                    PostRepository postRepository = new PostRepository();
-                    postRepository.savePost(title, content, userId); // 데이터베이스에 저장
-                    postListModel.addElement(title);
-                    dispose();
+                    if (!postListModel.contains(title)) { // 중복 방지
+                        PostRepository postRepository = new PostRepository();
+                        postRepository.savePost(title, content, userId); // 데이터베이스에 저장
+                        postListModel.addElement(title); // 제목을 리스트에 추가
+                    }
+                    dispose(); // 저장 후 다이얼로그 닫기
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(this, "글 저장 중 오류가 발생했습니다.", "오류", JOptionPane.ERROR_MESSAGE);
                 }
@@ -148,5 +160,22 @@ public class WritePostDialog extends JDialog {
 
     public String getContentText() {
         return contentArea.getText();
+    }
+
+    // 글 제목을 기반으로 글 ID를 가져오는 메서드 추가
+    private int getPostIdByTitle(String title) {
+        String sql = "SELECT id FROM posts WHERE title = ?";
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+            preparedStatement.setString(1, title);
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getInt("id");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return -1; // 글 ID가 없을 경우 -1 반환
     }
 }
