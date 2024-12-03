@@ -19,7 +19,6 @@ public class LoginDialog extends JDialog {
     private JCheckBox autoLoginCheck;
     private boolean isLoggedIn = false;
     private String username;
-    private String nickname;
 
     public LoginDialog(JFrame parentFrame) {
         super(parentFrame, "로그인", true);
@@ -109,14 +108,13 @@ public class LoginDialog extends JDialog {
     private boolean authenticateUser(String username, String password) {
         try (Connection conn = DatabaseConnector.getConnection()) {
             if (conn != null) {
-                String query = "SELECT nickname FROM users WHERE username = ? AND password = ?";
+                String query = "SELECT COUNT(*) AS count FROM users WHERE username = ? AND password = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(query)) {
                     stmt.setString(1, username);
                     stmt.setString(2, password);
                     try (ResultSet rs = stmt.executeQuery()) {
                         if (rs.next()) {
-                            nickname = rs.getString("nickname");
-                            return true;
+                            return rs.getInt("count") > 0;
                         }
                     }
                 }
@@ -134,9 +132,5 @@ public class LoginDialog extends JDialog {
 
     public String getUsername() {
         return username;
-    }
-
-    public String getNickname() {
-        return nickname;
     }
 }

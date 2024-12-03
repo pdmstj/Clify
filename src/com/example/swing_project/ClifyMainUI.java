@@ -14,6 +14,7 @@ import java.util.Random;
 public class ClifyMainUI {
 
     private static DefaultListModel<String> listModel;
+    private static JList<String> itemList; // itemList를 클래스 필드로 선언하여 다른 메서드에서 접근 가능하게 변경
     private static HashMap<String, String> postMap = new HashMap<>(); // 제목과 본문을 저장하는 맵
     private static boolean isLoggedIn = false; // 로그인 상태 확인
     private static String loggedInUsername = ""; // 로그인한 사용자의 아이디 저장
@@ -24,6 +25,7 @@ public class ClifyMainUI {
     public static boolean isLoggedIn() {
         return isLoggedIn;
     }
+
 
     public static void main(String[] args) {
         // 메인 프레임 생성
@@ -73,58 +75,15 @@ public class ClifyMainUI {
         gbc.fill = GridBagConstraints.NONE;
         topPanel.add(searchButton, gbc);
 
-        // 리스트 패널 (중앙)
-        JPanel listPanel = new JPanel();
-        listModel = new DefaultListModel<>(); // 리스트 모델 생성
-        JList<String> itemList = new JList<>(listModel);
-        itemList.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY)); // 경계선 추가
-        itemList.setBackground(Color.WHITE);
-        itemList.setFont(new Font("SansSerif", Font.PLAIN, 14));
-
-        // 프로그램 시작 시 데이터베이스에서 기존 글 불러오기
-        loadPostsFromDatabase();
-
-        // 검색 버튼 클릭 이벤트 추가
+        // 검색 버튼 클릭 시 검색 기능 추가 (리스트에서 해당 글 강조 표시)
         searchButton.addActionListener(e -> {
-            String query = searchField.getText().trim();
-            if (!query.isEmpty()) {
-                boolean found = false;
-                for (int i = 0; i < listModel.getSize(); i++) {
-                    String title = listModel.getElementAt(i);
-                    if (title.contains(query)) {
-                        itemList.setSelectedIndex(i);
-                        itemList.ensureIndexIsVisible(i);
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    JOptionPane.showMessageDialog(frame, "검색 결과가 없습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
-                }
+            String searchTerm = searchField.getText().trim();
+            if (postMap.containsKey(searchTerm)) {
+                itemList.setSelectedValue(searchTerm, true);
             } else {
-                JOptionPane.showMessageDialog(frame, "검색어를 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(frame, "검색 결과가 없습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
             }
         });
-
-        // 리스트 아이템 클릭 시 글 내용 보여주기
-        itemList.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) { // 더블 클릭 시
-                    String selectedTitle = itemList.getSelectedValue();
-                    String content = postMap.get(selectedTitle); // 제목에 해당하는 본문 찾기
-                    if (content != null) {
-                        // 새로운 창에 글 내용을 표시
-                        PostDetailDialog postDetailDialog = new PostDetailDialog(frame, selectedTitle, content);
-                        postDetailDialog.setVisible(true);
-                    }
-                }
-            }
-        });
-
-        // 스크롤 패널로 리스트 감싸기
-        JScrollPane listScrollPane = new JScrollPane(itemList);
-        mainPanel.add(listScrollPane, BorderLayout.CENTER);
 
         // 빈 공간 추가
         gbc.gridx = 3;
@@ -192,6 +151,37 @@ public class ClifyMainUI {
                 JOptionPane.showMessageDialog(frame, "로그인 실패: 아이디 또는 비밀번호가 잘못되었습니다.", "경고", JOptionPane.WARNING_MESSAGE);
             }
         });
+
+        // 리스트 패널 (중앙)
+        JPanel listPanel = new JPanel();
+        listModel = new DefaultListModel<>(); // 리스트 모델 생성
+        itemList = new JList<>(listModel);
+        itemList.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY)); // 경계선 추가
+        itemList.setBackground(Color.WHITE);
+        itemList.setFont(new Font("SansSerif", Font.PLAIN, 14));
+
+        // 프로그램 시작 시 데이터베이스에서 기존 글 불러오기
+        loadPostsFromDatabase();
+
+        // 리스트 아이템 클릭 시 글 내용 보여주기
+        itemList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) { // 더블 클릭 시
+                    String selectedTitle = itemList.getSelectedValue();
+                    String content = postMap.get(selectedTitle); // 제목에 해당하는 본문 찾기
+                    if (content != null) {
+                        // 새로운 창에 글 내용을 표시
+                        PostDetailDialog postDetailDialog = new PostDetailDialog(frame, selectedTitle, content);
+                        postDetailDialog.setVisible(true);
+                    }
+                }
+            }
+        });
+
+        // 스크롤 패널로 리스트 감싸기
+        JScrollPane listScrollPane = new JScrollPane(itemList);
+        mainPanel.add(listScrollPane, BorderLayout.CENTER);
 
         // 하단 패널 (글쓰기 버튼)
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
