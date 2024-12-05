@@ -20,6 +20,9 @@ public class MyPostsDialog extends JDialog {
     private boolean isNicknameFixed = false; // 고정 닉네임 여부
     private int currentUserId;
 
+    private final UserRepository userRepository = new UserRepository(); // UserRepository 참조
+    private final PostRepository postRepository = new PostRepository(); // PostRepository 참조
+
     public MyPostsDialog(List<post> userPosts, DefaultListModel<String> mainListModel, HashMap<String, String> mainPostMap, String loggedInUsername, int currentUserId) {
         setTitle("내가 작성한 글");
         setSize(600, 600);
@@ -33,7 +36,6 @@ public class MyPostsDialog extends JDialog {
         this.loggedInUsername = loggedInUsername;
         this.currentUserId = currentUserId;
 
-        UserRepository userRepository = new UserRepository();
         this.nickname = new AtomicReference<>(userRepository.getNicknameByUserId(currentUserId));
 
         // 상단 패널 (닉네임과 타이틀)
@@ -49,49 +51,34 @@ public class MyPostsDialog extends JDialog {
         nicknameLabel.setForeground(Color.WHITE);
         nicknamePanel.add(nicknameLabel);
 
-        JButton changeNicknameButton = new JButton("닉네임 변경");
-        changeNicknameButton.setBackground(new Color(153, 102, 255));
-        changeNicknameButton.setForeground(Color.WHITE);
-        changeNicknameButton.addActionListener(e -> {
+        // 닉네임 변경 버튼
+        JButton changeNicknameButton = createButton("닉네임 변경", e -> {
             if (!isNicknameFixed) {
                 String newNickname = generateRandomNickname();
                 if (!userRepository.isNicknameDuplicate(newNickname)) {
-                    nickname.set(newNickname);
-                    userRepository.updateNicknameByUserId(currentUserId, newNickname);
-                    nicknameLabel.setText("닉네임: " + nickname.get());
+                    updateNickname(newNickname, nicknameLabel);
                 } else {
-                    JOptionPane.showMessageDialog(this, "중복된 닉네임이 생성되었습니다. 다시 시도해주세요.", "오류", JOptionPane.ERROR_MESSAGE);
+                    showMessage("중복된 닉네임이 생성되었습니다. 다시 시도해주세요.", "오류", JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
         nicknamePanel.add(changeNicknameButton);
 
-        JButton fixNicknameButton = new JButton("고정 닉네임");
-        fixNicknameButton.setBackground(new Color(153, 102, 255));
-        fixNicknameButton.setForeground(Color.WHITE);
+        // 닉네임 고정 버튼
+        JButton fixNicknameButton = createButton("고정 닉네임", null);
         fixNicknameButton.addActionListener(e -> {
             isNicknameFixed = !isNicknameFixed;
-            if (isNicknameFixed) {
-                fixNicknameButton.setText("닉네임 고정 해제");
-                nicknameLabel.setText("닉네임: " + nickname.get() + " (고정)");
-            } else {
-                fixNicknameButton.setText("고정 닉네임");
-                nicknameLabel.setText("닉네임: " + nickname.get() + " (유동)");
-            }
+            updateNicknameLabel(nicknameLabel, fixNicknameButton);
         });
         nicknamePanel.add(fixNicknameButton);
 
-        JButton setNicknameButton = new JButton("닉네임 설정");
-        setNicknameButton.setBackground(new Color(153, 102, 255));
-        setNicknameButton.setForeground(Color.WHITE);
-        setNicknameButton.addActionListener(e -> {
+        // 닉네임 설정 버튼
+        JButton setNicknameButton = createButton("닉네임 설정", e -> {
             String newNickname = JOptionPane.showInputDialog(this, "새 닉네임을 입력하세요:");
             if (newNickname != null && !newNickname.trim().isEmpty() && !userRepository.isNicknameDuplicate(newNickname)) {
-                nickname.set(newNickname);
-                userRepository.updateNicknameByUserId(currentUserId, newNickname);
-                nicknameLabel.setText("닉네임: " + nickname.get() + (isNicknameFixed ? " (고정)" : " (유동)"));
+                updateNickname(newNickname, nicknameLabel);
             } else {
-                JOptionPane.showMessageDialog(this, "닉네임이 중복되었거나 유효하지 않습니다.", "오류", JOptionPane.ERROR_MESSAGE);
+                showMessage("닉네임이 중복되었거나 유효하지 않습니다.", "오류", JOptionPane.ERROR_MESSAGE);
             }
         });
         nicknamePanel.add(setNicknameButton);
@@ -107,14 +94,12 @@ public class MyPostsDialog extends JDialog {
 
         // 글 목록 리스트 모델 및 리스트 구성
         myPostsModel = new DefaultListModel<>();
-        for (post post : userPosts) {
-            myPostsModel.addElement(post.getTitle());
-        }
+        userPosts.forEach(post -> myPostsModel.addElement(post.getTitle()));
 
         myPostsList = new JList<>(myPostsModel);
         myPostsList.setFont(new Font("SansSerif", Font.PLAIN, 14));
         myPostsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        myPostsList.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY)); // 경계선 추가
+        myPostsList.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
         myPostsList.setBackground(Color.WHITE);
 
         // 리스트 클릭 시 글 내용 보여주기
@@ -122,15 +107,7 @@ public class MyPostsDialog extends JDialog {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
-                    String selectedTitle = myPostsList.getSelectedValue();
-                    post selectedPost = userPosts.stream()
-                            .filter(post -> post.getTitle().equals(selectedTitle))
-                            .findFirst()
-                            .orElse(null);
-
-                    if (selectedPost != null) {
-                        showPostDetailDialog(selectedPost);
-                    }
+                    showSelectedPostDetail(userPosts);
                 }
             }
         });
@@ -141,27 +118,15 @@ public class MyPostsDialog extends JDialog {
 
         // 하단 패널 (삭제 버튼과 닫기 버튼)
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
-        bottomPanel.setBackground(new Color(255, 240, 245)); // 하단 배경
+        bottomPanel.setBackground(new Color(255, 240, 245));
 
-        JButton deleteButton = new JButton("삭제");
-        deleteButton.setBackground(new Color(204, 102, 102));
-        deleteButton.setForeground(Color.WHITE);
-        deleteButton.setEnabled(false); // 초기에는 비활성화
-        deleteButton.addActionListener(e -> deleteSelectedPost(userPosts));
+        JButton deleteButton = createButton("삭제", e -> deleteSelectedPost(userPosts));
+        deleteButton.setEnabled(false);
 
-        JButton closeButton = new JButton("닫기");
-        closeButton.setBackground(new Color(204, 153, 255));
-        closeButton.setForeground(Color.WHITE);
-        closeButton.addActionListener(e -> dispose());
+        JButton closeButton = createButton("닫기", e -> dispose());
 
         // 글 선택 시 삭제 버튼 활성화
-        myPostsList.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting() && myPostsList.getSelectedIndex() != -1) {
-                deleteButton.setEnabled(true);
-            } else {
-                deleteButton.setEnabled(false);
-            }
-        });
+        myPostsList.addListSelectionListener(e -> deleteButton.setEnabled(myPostsList.getSelectedIndex() != -1));
 
         bottomPanel.add(deleteButton);
         bottomPanel.add(closeButton);
@@ -173,7 +138,7 @@ public class MyPostsDialog extends JDialog {
         String selectedTitle = myPostsList.getSelectedValue();
         if (selectedTitle != null) {
             int confirm = JOptionPane.showConfirmDialog(
-                    MyPostsDialog.this,
+                    this,
                     "정말로 선택한 글을 삭제하시겠습니까?",
                     "삭제 확인",
                     JOptionPane.YES_NO_OPTION
@@ -186,13 +151,9 @@ public class MyPostsDialog extends JDialog {
                         .orElse(null);
 
                 if (selectedPost != null) {
-                    // 데이터베이스에서 글 삭제
-                    PostRepository postRepository = new PostRepository();
-                    postRepository.deletePostById(selectedPost.getId());
-
-                    // UI에서 글 삭제
-                    userPosts.remove(selectedPost);
-                    myPostsModel.removeElement(selectedTitle);
+                    postRepository.deletePostById(selectedPost.getId()); // 데이터베이스에서 글 삭제
+                    userPosts.remove(selectedPost); // 목록에서 글 삭제
+                    myPostsModel.removeElement(selectedTitle); // UI에서 글 삭제
 
                     // 메인 UI에서도 글 삭제
                     if (mainListModel.contains(selectedTitle)) {
@@ -200,36 +161,62 @@ public class MyPostsDialog extends JDialog {
                         mainPostMap.remove(selectedTitle);
                     }
 
-                    JOptionPane.showMessageDialog(MyPostsDialog.this, "글이 삭제되었습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
+                    showMessage("글이 삭제되었습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
                 }
             }
         }
     }
 
     // 글 내용 상세보기 다이얼로그
-    private void showPostDetailDialog(post post) {
-        JDialog postDetailDialog = new JDialog(this, post.getTitle(), true);
-        postDetailDialog.setSize(450, 350);
-        postDetailDialog.setLayout(new BorderLayout(10, 10));
-        postDetailDialog.setLocationRelativeTo(this);
+    private void showSelectedPostDetail(List<post> userPosts) {
+        String selectedTitle = myPostsList.getSelectedValue();
+        post selectedPost = userPosts.stream()
+                .filter(post -> post.getTitle().equals(selectedTitle))
+                .findFirst()
+                .orElse(null);
 
-        JTextArea contentArea = new JTextArea(post.getContent());
-        contentArea.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        contentArea.setLineWrap(true); // 줄 바꿈 설정
-        contentArea.setWrapStyleWord(true); // 단어 단위로 줄 바꿈
-        contentArea.setEditable(false); // 수정 불가
+        if (selectedPost != null) {
+            JDialog postDetailDialog = new JDialog(this, selectedPost.getTitle(), true);
+            postDetailDialog.setSize(450, 350);
+            postDetailDialog.setLayout(new BorderLayout(10, 10));
+            postDetailDialog.setLocationRelativeTo(this);
 
-        JScrollPane contentScrollPane = new JScrollPane(contentArea);
-        contentScrollPane.setPreferredSize(new Dimension(400, 250));
-        postDetailDialog.add(contentScrollPane, BorderLayout.CENTER);
+            JTextArea contentArea = new JTextArea(selectedPost.getContent());
+            contentArea.setFont(new Font("SansSerif", Font.PLAIN, 14));
+            contentArea.setLineWrap(true);
+            contentArea.setWrapStyleWord(true);
+            contentArea.setEditable(false);
 
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton closeButton = new JButton("닫기");
-        closeButton.addActionListener(e -> postDetailDialog.dispose());
-        buttonPanel.add(closeButton);
+            JScrollPane contentScrollPane = new JScrollPane(contentArea);
+            contentScrollPane.setPreferredSize(new Dimension(400, 250));
+            postDetailDialog.add(contentScrollPane, BorderLayout.CENTER);
 
-        postDetailDialog.add(buttonPanel, BorderLayout.SOUTH);
-        postDetailDialog.setVisible(true);
+            JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            JButton closeButton = new JButton("닫기");
+            closeButton.addActionListener(e -> postDetailDialog.dispose());
+            buttonPanel.add(closeButton);
+
+            postDetailDialog.add(buttonPanel, BorderLayout.SOUTH);
+            postDetailDialog.setVisible(true);
+        }
+    }
+
+    // 닉네임 업데이트 메서드
+    private void updateNickname(String newNickname, JLabel nicknameLabel) {
+        nickname.set(newNickname);
+        userRepository.updateNicknameByUserId(currentUserId, newNickname);
+        nicknameLabel.setText("닉네임: " + nickname.get() + (isNicknameFixed ? " (고정)" : " (유동)"));
+    }
+
+    // 닉네임 라벨 업데이트
+    private void updateNicknameLabel(JLabel nicknameLabel, JButton fixNicknameButton) {
+        if (isNicknameFixed) {
+            fixNicknameButton.setText("닉네임 고정 해제");
+            nicknameLabel.setText("닉네임: " + nickname.get() + " (고정)");
+        } else {
+            fixNicknameButton.setText("고정 닉네임");
+            nicknameLabel.setText("닉네임: " + nickname.get() + " (유동)");
+        }
     }
 
     // 랜덤 닉네임 생성 메서드
@@ -239,9 +226,19 @@ public class MyPostsDialog extends JDialog {
         return randomNicknames[random.nextInt(randomNicknames.length)];
     }
 
-    // 닉네임 중복 검사 메서드
-    private boolean isNicknameDuplicate(String newNickname) {
-        UserRepository userRepository = new UserRepository();
-        return userRepository.isNicknameDuplicate(newNickname);
+    // 공통 메시지 표시 메서드
+    private void showMessage(String message, String title, int messageType) {
+        JOptionPane.showMessageDialog(this, message, title, messageType);
+    }
+
+    // 공통 버튼 생성 메서드
+    private JButton createButton(String text, java.awt.event.ActionListener actionListener) {
+        JButton button = new JButton(text);
+        button.setBackground(new Color(153, 102, 255));
+        button.setForeground(Color.WHITE);
+        if (actionListener != null) {
+            button.addActionListener(actionListener);
+        }
+        return button;
     }
 }

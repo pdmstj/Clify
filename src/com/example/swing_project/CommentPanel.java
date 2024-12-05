@@ -5,6 +5,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class CommentPanel extends JPanel {
@@ -12,6 +13,7 @@ public class CommentPanel extends JPanel {
     private DefaultListModel<String> commentListModel;
     private Map<String, DefaultListModel<String>> replyMap; // 댓글에 대한 대댓글 리스트를 관리하는 맵
     private Map<String, JScrollPane> visibleReplyLists; // 현재 보여지는 대댓글 리스트를 저장
+    private CommentRepository commentRepository;
 
     public CommentPanel() {
         setLayout(new BorderLayout());
@@ -35,6 +37,9 @@ public class CommentPanel extends JPanel {
         // 대댓글 맵 초기화
         replyMap = new HashMap<>();
         visibleReplyLists = new HashMap<>();
+
+        // CommentRepository 초기화
+        commentRepository = new CommentRepository();
 
         // 댓글 클릭 이벤트 처리 (대댓글 보이기/숨기기)
         commentList.addMouseListener(new MouseAdapter() {
@@ -66,7 +71,10 @@ public class CommentPanel extends JPanel {
 
             String commentText = commentField.getText().trim();
             if (!commentText.isEmpty()) {
-                commentListModel.addElement(commentText); // 댓글 추가
+                int userId = ClifyMainUI.getCurrentUserId(); // 현재 로그인한 사용자 ID 가져오기
+                String currentUser = ClifyMainUI.getCurrentUser();
+                commentRepository.saveComment(commentText, null, currentUser, userId); // 댓글 DB 저장
+                commentListModel.addElement(commentText); // UI 갱신
                 commentField.setText(""); // 입력 필드 초기화
                 replyMap.put(commentText, new DefaultListModel<>()); // 대댓글 리스트 초기화
             } else {
@@ -79,6 +87,25 @@ public class CommentPanel extends JPanel {
         commentInputPanel.add(commentField);
         commentInputPanel.add(commentButton);
         add(commentInputPanel, BorderLayout.SOUTH);
+
+        // 댓글 초기화
+        loadComments();
+    }
+
+    // 댓글 및 대댓글 불러오기
+    private void loadComments() {
+        List<Comment> comments = commentRepository.loadComments(null); // 부모 ID가 null인 댓글
+        for (Comment comment : comments) {
+            commentListModel.addElement(comment.getContent());
+            replyMap.put(comment.getContent(), new DefaultListModel<>());
+
+            // 대댓글 불러오기
+            List<Comment> replies = commentRepository.loadComments(comment.getId());
+            DefaultListModel<String> replyListModel = replyMap.get(comment.getContent());
+            for (Comment reply : replies) {
+                replyListModel.addElement(reply.getContent());
+            }
+        }
     }
 
     // 대댓글 토글 (보이기/숨기기)
@@ -133,7 +160,7 @@ public class CommentPanel extends JPanel {
         JButton submitButton = new JButton("등록");
         JButton cancelButton = new JButton("취소");
 
-        // 대댓글 등록 버튼 클릭 시
+        // 댓글 등록 버튼 클릭 시
         submitButton.addActionListener(e -> {
             // 로그인 상태 확인
             if (!ClifyMainUI.isLoggedIn()) {
@@ -143,6 +170,10 @@ public class CommentPanel extends JPanel {
 
             String replyText = replyField.getText().trim();
             if (!replyText.isEmpty()) {
+                int userId = ClifyMainUI.getCurrentUserId(); // 현재 로그인한 사용자 ID 가져오기
+                String currentUser = ClifyMainUI.getCurrentUser();
+                commentRepository.saveComment(replyText, comment, currentUser, userId); // 대댓글 DB 저장
+
                 DefaultListModel<String> replies = replyMap.get(comment);
                 if (replies == null) {
                     replies = new DefaultListModel<>();
