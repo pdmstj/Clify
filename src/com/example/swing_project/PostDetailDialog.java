@@ -4,12 +4,11 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.sql.Connection;
-import java.util.HashMap;
-import java.util.List;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.List;
 
 public class PostDetailDialog extends JDialog {
 
@@ -143,31 +142,34 @@ public class PostDetailDialog extends JDialog {
         likeButton.setBackground(new Color(255, 102, 102));
         likeButton.setForeground(Color.WHITE);
         likeButton.addActionListener(e -> {
-            postRepository.increaseLikeCount(postId); // 좋아요 수 증가
-            updateLikeCount(); // UI에 좋아요 수 갱신
+            if (!isUserLikedPost(currentUserId, postId)) { // 좋아요 중복 방지
+                postRepository.increaseLikeCount(postId); // 좋아요 수 증가
+                saveLike(currentUserId, postId); // 좋아요 기록 저장
+                updateLikeCount(); // UI에 좋아요 수 갱신
+            } else {
+                JOptionPane.showMessageDialog(PostDetailDialog.this, "이미 좋아요를 눌렀습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
+            }
         });
 
-        JButton replyButton = new JButton("답장");
-        JButton reportButton = new JButton("신고");
         JButton bookmarkButton = new JButton("북마크");
-        JButton closeButton = new JButton("닫기");
-
-        replyButton.setBackground(new Color(204, 153, 255));
-        reportButton.setBackground(new Color(204, 153, 255));
         bookmarkButton.setBackground(new Color(204, 153, 255));
-        closeButton.setBackground(new Color(204, 153, 255));
-
-        replyButton.setForeground(Color.WHITE);
-        reportButton.setForeground(Color.WHITE);
         bookmarkButton.setForeground(Color.WHITE);
-        closeButton.setForeground(Color.WHITE);
+        bookmarkButton.addActionListener(e -> {
+            if (!isUserBookmarkedPost(currentUserId, postId)) { // 북마크 중복 방지
+                saveBookmark(currentUserId, postId); // 북마크 저장
+                JOptionPane.showMessageDialog(PostDetailDialog.this, "게시글이 북마크되었습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(PostDetailDialog.this, "이미 북마크한 게시글입니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
 
+        JButton closeButton = new JButton("닫기");
+        closeButton.setBackground(new Color(204, 153, 255));
+        closeButton.setForeground(Color.WHITE);
         closeButton.addActionListener(e -> dispose());
 
         actionButtonsPanel.add(likeButton);
         actionButtonsPanel.add(likeCountLabel);
-        actionButtonsPanel.add(replyButton);
-        actionButtonsPanel.add(reportButton);
         actionButtonsPanel.add(bookmarkButton);
         actionButtonsPanel.add(closeButton);
 
@@ -214,6 +216,64 @@ public class PostDetailDialog extends JDialog {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void saveLike(int userId, int postId) {
+        String sql = "INSERT INTO likes (user_id, post_id, type, created_at) VALUES (?, ?, 'like', NOW())";
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+            preparedStatement.setInt(1, userId);
+            preparedStatement.setInt(2, postId);
+            preparedStatement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private boolean isUserLikedPost(int userId, int postId) {
+        String sql = "SELECT COUNT(*) FROM likes WHERE user_id = ? AND post_id = ? AND type = 'like'";
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+            preparedStatement.setInt(1, userId);
+            preparedStatement.setInt(2, postId);
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                if (resultSet.next() && resultSet.getInt(1) > 0) {
+                    return true;
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    private void saveBookmark(int userId, int postId) {
+        String sql = "INSERT INTO bookmarks (user_id, post_id, created_at) VALUES (?, ?, NOW())";
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+            preparedStatement.setInt(1, userId);
+            preparedStatement.setInt(2, postId);
+            preparedStatement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private boolean isUserBookmarkedPost(int userId, int postId) {
+        String sql = "SELECT COUNT(*) FROM bookmarks WHERE user_id = ? AND post_id = ?";
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+            preparedStatement.setInt(1, userId);
+            preparedStatement.setInt(2, postId);
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                if (resultSet.next() && resultSet.getInt(1) > 0) {
+                    return true;
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     private void showReplyDialog(int commentIndex) {

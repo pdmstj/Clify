@@ -14,6 +14,8 @@ public class MyPostsDialog extends JDialog {
     private JList<String> myPostsList;
     private DefaultListModel<String> myCommentsModel;
     private JList<String> myCommentsList;
+    private DefaultListModel<String> myBookmarksModel;
+    private JList<String> myBookmarksList;
 
     private DefaultListModel<String> mainListModel; // 메인 UI의 리스트 모델
     private String loggedInUsername; // 로그인한 사용자의 아이디
@@ -116,7 +118,7 @@ public class MyPostsDialog extends JDialog {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
-                    showSelectedPostDetail(userPosts);
+                    showSelectedPostDetailFromPosts(userPosts);
                 }
             }
         });
@@ -149,6 +151,30 @@ public class MyPostsDialog extends JDialog {
         commentsScrollPane.setPreferredSize(new Dimension(580, 300));
         tabbedPane.addTab("작성한 댓글", commentsScrollPane);
 
+        // 북마크한 글 탭
+        myBookmarksModel = new DefaultListModel<>();
+        List<post> bookmarkedPosts = postRepository.getBookmarkedPostsByUser(currentUserId);
+        bookmarkedPosts.forEach(post -> myBookmarksModel.addElement(post.getTitle()));
+
+        myBookmarksList = new JList<>(myBookmarksModel);
+        myBookmarksList.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        myBookmarksList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        myBookmarksList.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+        myBookmarksList.setBackground(Color.WHITE);
+
+        myBookmarksList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    showSelectedPostDetailFromBookmarks(bookmarkedPosts);
+                }
+            }
+        });
+
+        JScrollPane bookmarksScrollPane = new JScrollPane(myBookmarksList);
+        bookmarksScrollPane.setPreferredSize(new Dimension(580, 300));
+        tabbedPane.addTab("북마크한 글", bookmarksScrollPane);
+
         add(tabbedPane, BorderLayout.CENTER);
 
         // 하단 패널 (삭제 버튼과 닫기 버튼)
@@ -160,15 +186,18 @@ public class MyPostsDialog extends JDialog {
                 deleteSelectedPost(userPosts);
             } else if (tabbedPane.getSelectedIndex() == 1) {
                 deleteSelectedComment(userComments);
+            } else if (tabbedPane.getSelectedIndex() == 2) {
+                deleteSelectedBookmark(bookmarkedPosts);
             }
         });
         deleteButton.setEnabled(false);
 
         JButton closeButton = createButton("닫기", e -> dispose());
 
-        // 글 또는 댓글 선택 시 삭제 버튼 활성화
+        // 글, 댓글 또는 북마크 선택 시 삭제 버튼 활성화
         myPostsList.addListSelectionListener(e -> deleteButton.setEnabled(myPostsList.getSelectedIndex() != -1));
         myCommentsList.addListSelectionListener(e -> deleteButton.setEnabled(myCommentsList.getSelectedIndex() != -1));
+        myBookmarksList.addListSelectionListener(e -> deleteButton.setEnabled(myBookmarksList.getSelectedIndex() != -1));
 
         bottomPanel.add(deleteButton);
         bottomPanel.add(closeButton);
@@ -240,10 +269,23 @@ public class MyPostsDialog extends JDialog {
         JOptionPane.showMessageDialog(this, message, title, messageType);
     }
 
-    // 글 내용 상세보기 다이얼로그
-    private void showSelectedPostDetail(List<post> userPosts) {
+    // 작성한 글 상세보기 다이얼로그
+    private void showSelectedPostDetailFromPosts(List<post> userPosts) {
         String selectedTitle = myPostsList.getSelectedValue();
         post selectedPost = userPosts.stream()
+                .filter(post -> post.getTitle().equals(selectedTitle))
+                .findFirst()
+                .orElse(null);
+
+        if (selectedPost != null) {
+            showDetailDialog(selectedPost.getTitle(), selectedPost.getContent());
+        }
+    }
+
+    // 북마크한 글 상세보기 다이얼로그
+    private void showSelectedPostDetailFromBookmarks(List<post> bookmarkedPosts) {
+        String selectedTitle = myBookmarksList.getSelectedValue();
+        post selectedPost = bookmarkedPosts.stream()
                 .filter(post -> post.getTitle().equals(selectedTitle))
                 .findFirst()
                 .orElse(null);
@@ -341,6 +383,33 @@ public class MyPostsDialog extends JDialog {
                     userComments.remove(selectedCommentObj);
                     myCommentsModel.removeElement(selectedComment);
                     showMessage("댓글이 삭제되었습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
+                }
+            }
+        }
+    }
+
+    // 북마크 삭제 메서드
+    private void deleteSelectedBookmark(List<post> bookmarkedPosts) {
+        String selectedTitle = myBookmarksList.getSelectedValue();
+        if (selectedTitle != null) {
+            int confirm = JOptionPane.showConfirmDialog(
+                    this,
+                    "정말로 선택한 북마크를 삭제하시겠습니까?",
+                    "삭제 확인",
+                    JOptionPane.YES_NO_OPTION
+            );
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                post selectedPost = bookmarkedPosts.stream()
+                        .filter(post -> post.getTitle().equals(selectedTitle))
+                        .findFirst()
+                        .orElse(null);
+
+                if (selectedPost != null) {
+                    postRepository.deleteBookmarkByUser(currentUserId, selectedPost.getId());
+                    bookmarkedPosts.remove(selectedPost);
+                    myBookmarksModel.removeElement(selectedTitle);
+                    showMessage("북마크가 삭제되었습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
                 }
             }
         }

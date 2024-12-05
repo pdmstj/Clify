@@ -22,6 +22,13 @@ public class post {
         this.id = -1; // 임시 ID 값으로 설정 (데이터베이스에서 생성된 후 설정 가능)
     }
 
+    public post(int id, String title, String content) {
+        this.id = id;
+        this.title = title;
+        this.content = content;
+        this.likes = 0; // 기본값 설정
+    }
+
     // 제목을 반환하는 메소드
     public String getTitle() {
         return title;
