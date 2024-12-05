@@ -6,6 +6,10 @@ import java.awt.event.*;
 import java.sql.Connection;
 import java.util.HashMap;
 import java.util.List;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class PostDetailDialog extends JDialog {
 
@@ -16,6 +20,8 @@ public class PostDetailDialog extends JDialog {
     private int currentUserId; // 현재 사용자 ID
     private String nickname; // 현재 사용자 닉네임
     private CommentRepository commentRepository; // 댓글 데이터베이스 처리
+    private JLabel likeCountLabel; // 좋아요 수 라벨
+    private PostRepository postRepository; // 게시글 데이터베이스 처리
 
     public PostDetailDialog(JFrame parentFrame, String title, String content, int postId, String currentUserName, int currentUserId, String currentNickname, Connection connection) {
         super(parentFrame, title, true); // 모달 다이얼로그 설정
@@ -24,6 +30,7 @@ public class PostDetailDialog extends JDialog {
         this.currentUserId = currentUserId;
         this.nickname = currentNickname;
         this.commentRepository = new CommentRepository(connection);
+        this.postRepository = new PostRepository();
 
         setSize(800, 600);
         setLocationRelativeTo(parentFrame);
@@ -65,6 +72,12 @@ public class PostDetailDialog extends JDialog {
         contentPanel.add(contentTitle, BorderLayout.NORTH);
         contentPanel.add(contentScrollPane, BorderLayout.CENTER);
         add(contentPanel, BorderLayout.NORTH);
+
+        // 좋아요 수 라벨 추가
+        likeCountLabel = new JLabel();
+        likeCountLabel.setFont(new Font("SansSerif", Font.PLAIN, 16));
+        likeCountLabel.setForeground(new Color(102, 102, 255));
+        updateLikeCount(); // 초기 좋아요 수 설정
 
         // 댓글 패널
         JPanel commentPanel = new JPanel(new BorderLayout());
@@ -126,6 +139,14 @@ public class PostDetailDialog extends JDialog {
         JPanel actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         actionButtonsPanel.setBackground(new Color(255, 240, 245));
 
+        JButton likeButton = new JButton("좋아요");
+        likeButton.setBackground(new Color(255, 102, 102));
+        likeButton.setForeground(Color.WHITE);
+        likeButton.addActionListener(e -> {
+            postRepository.increaseLikeCount(postId); // 좋아요 수 증가
+            updateLikeCount(); // UI에 좋아요 수 갱신
+        });
+
         JButton replyButton = new JButton("답장");
         JButton reportButton = new JButton("신고");
         JButton bookmarkButton = new JButton("북마크");
@@ -143,6 +164,8 @@ public class PostDetailDialog extends JDialog {
 
         closeButton.addActionListener(e -> dispose());
 
+        actionButtonsPanel.add(likeButton);
+        actionButtonsPanel.add(likeCountLabel);
         actionButtonsPanel.add(replyButton);
         actionButtonsPanel.add(reportButton);
         actionButtonsPanel.add(bookmarkButton);
@@ -174,6 +197,22 @@ public class PostDetailDialog extends JDialog {
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(this, "댓글 저장 중 오류가 발생했습니다.");
+        }
+    }
+
+    private void updateLikeCount() {
+        String sql = "SELECT likes FROM posts WHERE id = ?";
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+            preparedStatement.setInt(1, postId);
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                if (resultSet.next()) {
+                    int likeCount = resultSet.getInt("likes");
+                    likeCountLabel.setText("좋아요: " + likeCount);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 

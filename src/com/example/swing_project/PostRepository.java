@@ -8,7 +8,7 @@ public class PostRepository {
 
     // 글 저장 메서드
     public void savePost(String title, String content, int userId) {
-        String sql = "INSERT INTO posts (title, content, user_id) VALUES (?, ?, ?)";
+        String sql = "INSERT INTO posts (title, content, user_id, likes) VALUES (?, ?, ?, 0)";
         try (Connection connection = DatabaseConnector.getConnection();
              PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
 
@@ -57,7 +57,8 @@ public class PostRepository {
                     int id = resultSet.getInt("id");
                     String title = resultSet.getString("title");
                     String content = resultSet.getString("content");
-                    userPosts.add(new post(id, title, content));
+                    int likes = resultSet.getInt("likes");
+                    userPosts.add(new post(id, title, content, likes));
                 }
             }
 
@@ -66,6 +67,64 @@ public class PostRepository {
         }
 
         return userPosts;
+    }
+
+    // 좋아요 수 증가 메서드
+    public void increaseLikeCount(int postId) {
+        String sql = "UPDATE posts SET likes = likes + 1 WHERE id = ?";
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+
+            preparedStatement.setInt(1, postId);
+            int rowsAffected = preparedStatement.executeUpdate();
+            if (rowsAffected > 0) {
+                System.out.println("Like count updated successfully for post ID: " + postId);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // 좋아요 여부 확인 메서드
+    public boolean hasUserLikedPost(int userId, int postId) {
+        String sql = "SELECT COUNT(*) FROM likes WHERE user_id = ? AND post_id = ?";
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+
+            preparedStatement.setInt(1, userId);
+            preparedStatement.setInt(2, postId);
+
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getInt(1) > 0;
+                }
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return false;
+    }
+
+    // 좋아요 추가 메서드
+    public void addLike(int userId, int postId) {
+        String sql = "INSERT INTO likes (user_id, post_id) VALUES (?, ?)";
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+
+            preparedStatement.setInt(1, userId);
+            preparedStatement.setInt(2, postId);
+            int rowsAffected = preparedStatement.executeUpdate();
+            if (rowsAffected > 0) {
+                System.out.println("Like added successfully for post ID: " + postId);
+                increaseLikeCount(postId);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     // 특정 글 ID로 삭제
@@ -98,7 +157,8 @@ public class PostRepository {
                 int id = resultSet.getInt("id");
                 String title = resultSet.getString("title");
                 String content = resultSet.getString("content");
-                allPosts.add(new post(id, title, content));
+                int likes = resultSet.getInt("likes");
+                allPosts.add(new post(id, title, content, likes));
             }
 
         } catch (SQLException e) {
