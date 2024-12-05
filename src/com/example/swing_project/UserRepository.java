@@ -15,10 +15,15 @@ public class UserRepository {
         try (Connection connection = DatabaseConnector.getConnection();
              PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
 
+            String nickname;
+            do {
+                nickname = generateRandomNickname();
+            } while (isNicknameDuplicate(nickname)); // 중복되지 않는 닉네임 생성
+
             preparedStatement.setString(1, username);
             preparedStatement.setString(2, password);
             preparedStatement.setString(3, email);
-            preparedStatement.setString(4, generateRandomNickname()); // 랜덤 닉네임 설정
+            preparedStatement.setString(4, nickname); // 랜덤 닉네임 설정
 
             int rowsAffected = preparedStatement.executeUpdate();
             if (rowsAffected > 0) {
@@ -65,6 +70,12 @@ public class UserRepository {
 
     // 사용자 ID를 기반으로 닉네임을 업데이트하는 메서드
     public void updateNicknameByUserId(int userId, String newNickname) {
+        // 닉네임 중복 체크
+        if (isNicknameDuplicate(newNickname)) {
+            System.out.println("Nickname is already taken. Please choose another one.");
+            return;
+        }
+
         String sql = "UPDATE users SET nickname = ? WHERE id = ?";
         try (Connection connection = DatabaseConnector.getConnection();
              PreparedStatement preparedStatement = connection.prepareStatement(sql)) {

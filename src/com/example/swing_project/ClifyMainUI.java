@@ -16,7 +16,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-
 public class ClifyMainUI {
 
     private static DefaultListModel<String> listModel;
@@ -109,11 +108,7 @@ public class ClifyMainUI {
                 int userId = userRepository.getUserIdByUsername(loggedInUsername); // 사용자의 ID 가져오기
                 if (userId != -1) {
                     currentUserId = userId; // 로그인한 사용자의 ID 저장
-                }
-
-                // 닉네임이 고정되지 않은 경우 랜덤 닉네임 생성
-                if (!isNicknameFixed) {
-                    nickname = generateRandomNickname();
+                    nickname = userRepository.getNicknameByUserId(userId); // 로그인한 사용자의 닉네임 저장
                 }
 
                 // 마이 페이지 버튼 활성화
@@ -125,6 +120,7 @@ public class ClifyMainUI {
                 showMessage(frame, "로그인 실패: 아이디 또는 비밀번호가 잘못되었습니다.", "경고", JOptionPane.WARNING_MESSAGE);
             }
         });
+
         gbc.gridx = 4;
         gbc.gridy = 0;
         gbc.weightx = 0;
@@ -142,7 +138,7 @@ public class ClifyMainUI {
                 if (userPosts.isEmpty() && userComments.isEmpty()) {
                     showMessage(frame, "작성한 글과 댓글이 없습니다.", "정보", JOptionPane.INFORMATION_MESSAGE);
                 } else {
-                    MyPostsDialog myPostsDialog = new MyPostsDialog(userPosts, listModel, loggedInUsername, currentUserId);
+                    MyPostsDialog myPostsDialog = new MyPostsDialog(userPosts, listModel, nickname, currentUserId);
                     myPostsDialog.setVisible(true);
                 }
             }
@@ -180,15 +176,16 @@ public class ClifyMainUI {
                         // DatabaseConnector를 통해 연결 가져오기
                         Connection connection = DatabaseConnector.getConnection();
 
+                        // 로그인된 사용자의 닉네임 가져오기
+                        String currentNickname = getCurrentNickname();
+
                         // PostDetailDialog 생성 및 표시
-                        PostDetailDialog postDetailDialog = new PostDetailDialog(frame, selectedTitle, content, postId, getCurrentUser(), getCurrentUserId(), connection);
+                        PostDetailDialog postDetailDialog = new PostDetailDialog(frame, selectedTitle, content, postId, loggedInUsername, currentUserId, currentNickname, connection);
                         postDetailDialog.setVisible(true);
                     }
                 }
             }
         });
-
-
 
         // 스크롤 패널로 리스트 감싸기
         JScrollPane listScrollPane = new JScrollPane(itemList);
@@ -267,6 +264,11 @@ public class ClifyMainUI {
         return loggedInUsername;
     }
 
+    // 로그인된 사용자의 닉네임을 반환하는 메서드
+    public static String getCurrentNickname() {
+        return nickname;
+    }
+
     // 플레이스홀더 추가 메서드
     public static void addPlaceholderText(JTextComponent textComponent, String placeholder) {
         textComponent.setForeground(Color.GRAY);
@@ -278,15 +280,13 @@ public class ClifyMainUI {
                 if (textComponent.getText().equals(placeholder)) {
                     textComponent.setText("");
                     textComponent.setForeground(Color.BLACK); // 입력 시 검은색 글씨로 변경
-
-
                 }
             }
 
             @Override
             public void focusLost(FocusEvent e) {
                 if (textComponent.getText().isEmpty()) {
-                    textComponent.setForeground(Color.GRAY); // 포커스를 잃으면 다시 회색 플레이스호드
+                    textComponent.setForeground(Color.GRAY); // 포커스를 잃으면 다시 회색 플레이스홀더
                     textComponent.setText(placeholder);
                 }
             }

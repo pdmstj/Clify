@@ -14,18 +14,13 @@ public class CommentRepository {
     }
 
     // 댓글 저장 메서드
-    public String saveComment(int postId, String comment, String parentId, String author, int userId) {
-        String sql = "INSERT INTO comments (post_id, content, parent_id, author, user_id, created_at) VALUES (?, ?, ?, ?, ?, NOW())";
+    public String saveComment(int postId, String content, String author, int userId) {
+        String sql = "INSERT INTO comments (post_id, content, parent_id, author, user_id, created_at) VALUES (?, ?, NULL, ?, ?, NOW())";
         try (PreparedStatement pstmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             pstmt.setInt(1, postId);
-            pstmt.setString(2, comment);
-            if (parentId == null || parentId.isEmpty()) {
-                pstmt.setNull(3, Types.VARCHAR);
-            } else {
-                pstmt.setString(3, parentId);
-            }
-            pstmt.setString(4, author);
-            pstmt.setInt(5, userId);
+            pstmt.setString(2, content);
+            pstmt.setString(3, author); // 작성자의 닉네임 또는 사용자 이름을 설정
+            pstmt.setInt(4, userId);
             pstmt.executeUpdate();
 
             // 생성된 댓글 ID 반환
@@ -48,7 +43,7 @@ public class CommentRepository {
             pstmt.setString(1, parentId);
             pstmt.setString(2, replyContent);
             pstmt.setString(3, parentId);
-            pstmt.setString(4, author);
+            pstmt.setString(4, author); // 작성자의 닉네임 또는 사용자 이름을 설정
             pstmt.setInt(5, userId);
             pstmt.executeUpdate();
 

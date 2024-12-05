@@ -5,7 +5,7 @@ import java.sql.Timestamp;
 public class Comment {
     private String id;          // 댓글 ID
     private String content;     // 댓글 내용
-    private String author;      // 작성자
+    private String author;      // 작성자 (닉네임)
     private int userId;         // 작성자 ID
     private Timestamp createdAt; // 댓글 작성 시간
 
@@ -62,6 +62,6 @@ public class Comment {
     // toString 메서드 - UI 또는 로그 출력 시 가독성 향상
     @Override
     public String toString() {
-        return String.format("[%s] %s - %s (%s)", id, content, author, createdAt.toString());
+        return String.format("%s - %s (%s)", content, author, createdAt.toString());
     }
 }

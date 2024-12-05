@@ -14,13 +14,15 @@ public class PostDetailDialog extends JDialog {
     private int postId; // 현재 게시글 ID
     private String currentUserName; // 현재 사용자 이름
     private int currentUserId; // 현재 사용자 ID
+    private String nickname; // 현재 사용자 닉네임
     private CommentRepository commentRepository; // 댓글 데이터베이스 처리
 
-    public PostDetailDialog(JFrame parentFrame, String title, String content, int postId, String currentUserName, int currentUserId, Connection connection) {
+    public PostDetailDialog(JFrame parentFrame, String title, String content, int postId, String currentUserName, int currentUserId, String currentNickname, Connection connection) {
         super(parentFrame, title, true); // 모달 다이얼로그 설정
         this.postId = postId;
         this.currentUserName = currentUserName;
         this.currentUserId = currentUserId;
+        this.nickname = currentNickname;
         this.commentRepository = new CommentRepository(connection);
 
         setSize(800, 600);
@@ -33,7 +35,7 @@ public class PostDetailDialog extends JDialog {
         getContentPane().setBackground(new Color(255, 240, 245));
 
         // 상단 제목 표시
-        JLabel titleLabel = new JLabel(title);
+        JLabel titleLabel = new JLabel("게시글 상세");
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 30));
         titleLabel.setHorizontalAlignment(SwingConstants.LEFT);
         titleLabel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -107,12 +109,13 @@ public class PostDetailDialog extends JDialog {
         addCommentButton.addActionListener(e -> {
             String comment = commentInputField.getText().trim();
             if (!comment.isEmpty()) {
-                saveComment(comment); // 댓글 저장
+                saveComment(comment); // 댓글 저장 시 로그인된 사용자의 닉네임 사용
                 commentInputField.setText("");
             } else {
                 JOptionPane.showMessageDialog(PostDetailDialog.this, "댓글 내용을 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
             }
         });
+
         inputPanel.add(addCommentButton, BorderLayout.EAST);
 
         commentPanel.add(inputPanel, BorderLayout.SOUTH);
@@ -153,7 +156,9 @@ public class PostDetailDialog extends JDialog {
             List<Comment> comments = commentRepository.loadCommentsByPost(postId);
             commentListModel.clear();
             for (Comment comment : comments) {
-                commentListModel.addElement(comment.toString());
+                // nickname을 사용하여 댓글을 포맷팅
+                String formattedComment = String.format("%s - %s (%s)", comment.getContent(), comment.getAuthor(), comment.getCreatedAt().toString());
+                commentListModel.addElement(formattedComment);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -163,7 +168,8 @@ public class PostDetailDialog extends JDialog {
 
     private void saveComment(String content) {
         try {
-            commentRepository.saveComment(postId, content, null, currentUserName, currentUserId);
+            // author를 현재 사용자 닉네임으로 지정합니다.
+            commentRepository.saveComment(postId, content, nickname, currentUserId);
             loadComments(); // 댓글 저장 후 새로고침
         } catch (Exception e) {
             e.printStackTrace();

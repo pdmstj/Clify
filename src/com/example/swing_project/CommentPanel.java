@@ -77,8 +77,8 @@ public class CommentPanel extends JPanel {
             String commentText = commentField.getText().trim();
             if (!commentText.isEmpty()) {
                 int userId = ClifyMainUI.getCurrentUserId(); // 현재 로그인한 사용자 ID 가져오기
-                String currentUser = ClifyMainUI.getCurrentUser();
-                commentRepository.saveComment(postId, commentText, null, currentUser, userId); // 게시글 ID와 함께 댓글 DB 저장
+                String currentUserNickname = ClifyMainUI.getCurrentNickname(); // 로그인된 사용자의 닉네임 가져오기
+                commentRepository.saveComment(postId, commentText, currentUserNickname, userId); // 게시글 ID와 함께 댓글 DB 저장
                 commentField.setText(""); // 입력 필드 초기화
                 loadComments(); // 댓글 저장 후 댓글 목록 갱신
             } else {
@@ -101,14 +101,14 @@ public class CommentPanel extends JPanel {
         commentListModel.clear(); // 기존 댓글 삭제 후 갱신
         List<Comment> comments = commentRepository.loadCommentsByPost(postId); // 해당 게시글에 대한 댓글 (최상위 댓글들)
         for (Comment comment : comments) {
-            commentListModel.addElement(comment.getContent()); // 댓글 리스트에 추가
+            commentListModel.addElement(comment.getContent() + " - " + comment.getAuthor()); // 댓글 리스트에 추가, 작성자 표시
             replyMap.put(comment.getContent(), new DefaultListModel<>()); // 대댓글 리스트 초기화
 
             // 대댓글 불러오기
             List<Comment> replies = commentRepository.loadRepliesByCommentId(comment.getId()); // 해당 댓글에 대한 대댓글 불러오기
             DefaultListModel<String> replyListModel = replyMap.get(comment.getContent());
             for (Comment reply : replies) {
-                replyListModel.addElement(reply.getContent()); // 대댓글 리스트에 추가
+                replyListModel.addElement(reply.getContent() + " - " + reply.getAuthor()); // 대댓글 리스트에 추가, 작성자 표시
             }
         }
     }
@@ -176,15 +176,15 @@ public class CommentPanel extends JPanel {
             String replyText = replyField.getText().trim();
             if (!replyText.isEmpty()) {
                 int userId = ClifyMainUI.getCurrentUserId(); // 현재 로그인한 사용자 ID 가져오기
-                String currentUser = ClifyMainUI.getCurrentUser();
-                commentRepository.saveReply(comment, replyText, currentUser, userId); // 대댓글 DB 저장
+                String currentUserNickname = ClifyMainUI.getCurrentNickname(); // 로그인된 사용자의 닉네임 가져오기
+                commentRepository.saveReply(comment, replyText, currentUserNickname, userId); // 대댓글 DB 저장
 
                 DefaultListModel<String> replies = replyMap.get(comment);
                 if (replies == null) {
                     replies = new DefaultListModel<>();
                     replyMap.put(comment, replies); // 대댓글 리스트가 없을 경우 초기화
                 }
-                replies.addElement(replyText); // 대댓글 추가
+                replies.addElement(replyText + " - " + currentUserNickname); // 대댓글 추가
                 JOptionPane.showMessageDialog(this, "대댓글이 등록되었습니다.");
                 replyDialog.dispose();
                 loadComments(); // 대댓글 등록 후 댓글 목록 갱신
