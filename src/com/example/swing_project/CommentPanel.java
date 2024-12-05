@@ -10,12 +10,16 @@ import java.util.Map;
 
 public class CommentPanel extends JPanel {
 
-    private DefaultListModel<String> commentListModel;
+    private DefaultListModel<String> commentListModel; // 댓글 리스트 모델
     private Map<String, DefaultListModel<String>> replyMap; // 댓글에 대한 대댓글 리스트를 관리하는 맵
     private Map<String, JScrollPane> visibleReplyLists; // 현재 보여지는 대댓글 리스트를 저장
     private CommentRepository commentRepository;
+    private int postId; // 현재 게시글의 ID
 
-    public CommentPanel() {
+    // 생성자에 게시글 ID를 전달받도록 수정
+    public CommentPanel(int postId) {
+        this.postId = postId; // 게시글 ID 저장
+
         setLayout(new BorderLayout());
         setBackground(new Color(255, 240, 245));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -39,16 +43,16 @@ public class CommentPanel extends JPanel {
         visibleReplyLists = new HashMap<>();
 
         // CommentRepository 초기화
-        commentRepository = new CommentRepository();
+        commentRepository = new CommentRepository(DatabaseConnector.getConnection());
 
         // 댓글 클릭 이벤트 처리 (대댓글 보이기/숨기기)
         commentList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 1) { // 클릭 시
+                if (e.getClickCount() == 1) { // 댓글을 클릭 시
                     String selectedComment = commentList.getSelectedValue();
                     if (selectedComment != null) {
-                        toggleReplyVisibility(selectedComment);
+                        toggleReplyVisibility(selectedComment); // 대댓글 보이기/숨기기 토글
                     }
                 }
             }
@@ -62,9 +66,10 @@ public class CommentPanel extends JPanel {
         commentButton.setForeground(Color.WHITE);
         commentButton.setFocusPainted(false);
 
+        // 댓글 달기 버튼 클릭 시 댓글 저장 및 UI 갱신
         commentButton.addActionListener(e -> {
             // 로그인 상태 확인
-            if (!ClifyMainUI.isLoggedIn()) {
+            if (!ClifyMainUI.getIsLoggedIn()) { // 메서드를 사용하여 로그인 상태 확인
                 JOptionPane.showMessageDialog(this, "로그인 후에 댓글을 작성할 수 있습니다.", "경고", JOptionPane.WARNING_MESSAGE);
                 return;
             }
@@ -73,10 +78,9 @@ public class CommentPanel extends JPanel {
             if (!commentText.isEmpty()) {
                 int userId = ClifyMainUI.getCurrentUserId(); // 현재 로그인한 사용자 ID 가져오기
                 String currentUser = ClifyMainUI.getCurrentUser();
-                commentRepository.saveComment(commentText, null, currentUser, userId); // 댓글 DB 저장
-                commentListModel.addElement(commentText); // UI 갱신
+                commentRepository.saveComment(postId, commentText, null, currentUser, userId); // 게시글 ID와 함께 댓글 DB 저장
                 commentField.setText(""); // 입력 필드 초기화
-                replyMap.put(commentText, new DefaultListModel<>()); // 대댓글 리스트 초기화
+                loadComments(); // 댓글 저장 후 댓글 목록 갱신
             } else {
                 JOptionPane.showMessageDialog(this, "댓글 내용을 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
             }
@@ -88,29 +92,30 @@ public class CommentPanel extends JPanel {
         commentInputPanel.add(commentButton);
         add(commentInputPanel, BorderLayout.SOUTH);
 
-        // 댓글 초기화
+        // 댓글 초기화 (데이터베이스에서 댓글 및 대댓글 불러오기)
         loadComments();
     }
 
     // 댓글 및 대댓글 불러오기
     private void loadComments() {
-        List<Comment> comments = commentRepository.loadComments(null); // 부모 ID가 null인 댓글
+        commentListModel.clear(); // 기존 댓글 삭제 후 갱신
+        List<Comment> comments = commentRepository.loadCommentsByPost(postId); // 해당 게시글에 대한 댓글 (최상위 댓글들)
         for (Comment comment : comments) {
-            commentListModel.addElement(comment.getContent());
-            replyMap.put(comment.getContent(), new DefaultListModel<>());
+            commentListModel.addElement(comment.getContent()); // 댓글 리스트에 추가
+            replyMap.put(comment.getContent(), new DefaultListModel<>()); // 대댓글 리스트 초기화
 
             // 대댓글 불러오기
-            List<Comment> replies = commentRepository.loadComments(comment.getId());
+            List<Comment> replies = commentRepository.loadRepliesByCommentId(comment.getId()); // 해당 댓글에 대한 대댓글 불러오기
             DefaultListModel<String> replyListModel = replyMap.get(comment.getContent());
             for (Comment reply : replies) {
-                replyListModel.addElement(reply.getContent());
+                replyListModel.addElement(reply.getContent()); // 대댓글 리스트에 추가
             }
         }
     }
 
-    // 대댓글 토글 (보이기/숨기기)
+    // 대댓글 보이기/숨기기 토글
     private void toggleReplyVisibility(String comment) {
-        DefaultListModel<String> replies = replyMap.get(comment);
+        DefaultListModel<String> replies = replyMap.get(comment); // 해당 댓글에 대한 대댓글 리스트 가져오기
         if (replies == null || replies.isEmpty()) {
             JOptionPane.showMessageDialog(this, "대댓글이 없습니다.");
             return;
@@ -160,10 +165,10 @@ public class CommentPanel extends JPanel {
         JButton submitButton = new JButton("등록");
         JButton cancelButton = new JButton("취소");
 
-        // 댓글 등록 버튼 클릭 시
+        // 대댓글 등록 버튼 클릭 시
         submitButton.addActionListener(e -> {
             // 로그인 상태 확인
-            if (!ClifyMainUI.isLoggedIn()) {
+            if (!ClifyMainUI.getIsLoggedIn()) { // 메서드를 사용하여 로그인 상태 확인
                 JOptionPane.showMessageDialog(this, "로그인 후에 대댓글을 작성할 수 있습니다.", "경고", JOptionPane.WARNING_MESSAGE);
                 return;
             }
@@ -172,7 +177,7 @@ public class CommentPanel extends JPanel {
             if (!replyText.isEmpty()) {
                 int userId = ClifyMainUI.getCurrentUserId(); // 현재 로그인한 사용자 ID 가져오기
                 String currentUser = ClifyMainUI.getCurrentUser();
-                commentRepository.saveComment(replyText, comment, currentUser, userId); // 대댓글 DB 저장
+                commentRepository.saveReply(comment, replyText, currentUser, userId); // 대댓글 DB 저장
 
                 DefaultListModel<String> replies = replyMap.get(comment);
                 if (replies == null) {
@@ -182,6 +187,7 @@ public class CommentPanel extends JPanel {
                 replies.addElement(replyText); // 대댓글 추가
                 JOptionPane.showMessageDialog(this, "대댓글이 등록되었습니다.");
                 replyDialog.dispose();
+                loadComments(); // 대댓글 등록 후 댓글 목록 갱신
             } else {
                 JOptionPane.showMessageDialog(this, "대댓글 내용을 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
             }

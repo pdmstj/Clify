@@ -107,4 +107,26 @@ public class PostRepository {
 
         return allPosts;
     }
+
+    // 제목으로 글 ID 조회 메서드 추가
+    public int getPostIdByTitle(String title) {
+        String sql = "SELECT id FROM posts WHERE title = ?";
+        int postId = -1;
+
+        try (Connection connection = DatabaseConnector.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+
+            preparedStatement.setString(1, title);
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                if (resultSet.next()) {
+                    postId = resultSet.getInt("id");
+                }
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return postId;
+    }
 }
